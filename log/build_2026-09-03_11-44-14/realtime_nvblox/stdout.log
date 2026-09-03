@@ -1,0 +1,86 @@
+running egg_info
+creating ../../build/realtime_nvblox/realtime_nvblox.egg-info
+writing ../../build/realtime_nvblox/realtime_nvblox.egg-info/PKG-INFO
+writing dependency_links to ../../build/realtime_nvblox/realtime_nvblox.egg-info/dependency_links.txt
+writing entry points to ../../build/realtime_nvblox/realtime_nvblox.egg-info/entry_points.txt
+writing requirements to ../../build/realtime_nvblox/realtime_nvblox.egg-info/requires.txt
+writing top-level names to ../../build/realtime_nvblox/realtime_nvblox.egg-info/top_level.txt
+writing manifest file '../../build/realtime_nvblox/realtime_nvblox.egg-info/SOURCES.txt'
+reading manifest file '../../build/realtime_nvblox/realtime_nvblox.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file '../../build/realtime_nvblox/realtime_nvblox.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/stats.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/check_env.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/runtime.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/runtime_loader.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/queues.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/config.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/rate_limiter.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/types.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/__init__.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/ros_node.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/cli.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/cuvslam_backend.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/pose_buffer.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/nvblox_backend.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/realsense_source.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/ros_publishers.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+copying realtime_nvblox/default.yaml -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+running install
+running install_lib
+creating /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/default.yaml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/stats.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/check_env.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/runtime.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/runtime_loader.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/queues.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/config.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/rate_limiter.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/types.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/__init__.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/ros_node.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/cli.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/cuvslam_backend.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/pose_buffer.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/nvblox_backend.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/realsense_source.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+copying /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox/ros_publishers.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/stats.py to stats.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/check_env.py to check_env.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/runtime.py to runtime.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/runtime_loader.py to runtime_loader.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/queues.py to queues.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/config.py to config.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/rate_limiter.py to rate_limiter.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/types.py to types.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/ros_node.py to ros_node.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/cli.py to cli.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/cuvslam_backend.py to cuvslam_backend.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/pose_buffer.py to pose_buffer.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/nvblox_backend.py to nvblox_backend.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/realsense_source.py to realsense_source.cpython-310.pyc
+byte-compiling /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox/ros_publishers.py to ros_publishers.cpython-310.pyc
+running install_data
+creating /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/ament_index/resource_index/packages
+copying resource/realtime_nvblox -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/ament_index/resource_index/packages
+copying package.xml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+copying README.md -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+copying DEPLOY.md -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+creating /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/config
+copying config/default.yaml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/config
+creating /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/launch
+copying launch/reconstruction.launch.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/launch
+creating /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/rviz
+copying rviz/realtime_nvblox.rviz -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/rviz
+running install_egg_info
+Copying ../../build/realtime_nvblox/realtime_nvblox.egg-info to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox-1.0.0-py3.10.egg-info
+running install_scripts
+Installing check_environment script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+Installing ros_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+Installing standalone_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+writing list of installed files to '/home/czz/realtime_nvblox_ws/build/realtime_nvblox/install.log'

@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: realtime_nvblox
+Version: 1.0.0
+Summary: Python-first RealSense + cuVSLAM + nvblox_torch realtime reconstruction
+License: MIT
+License-File: LICENSE
+Requires-Dist: setuptools
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary

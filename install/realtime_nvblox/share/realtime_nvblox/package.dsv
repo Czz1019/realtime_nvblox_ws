@@ -1,0 +1,6 @@
+source;share/realtime_nvblox/hook/pythonpath.ps1
+source;share/realtime_nvblox/hook/pythonpath.dsv
+source;share/realtime_nvblox/hook/pythonpath.sh
+source;share/realtime_nvblox/hook/ament_prefix_path.ps1
+source;share/realtime_nvblox/hook/ament_prefix_path.dsv
+source;share/realtime_nvblox/hook/ament_prefix_path.sh

@@ -1,0 +1,4 @@
+[console_scripts]
+check_environment = realtime_nvblox.check_env:main
+ros_mapper = realtime_nvblox.ros_node:main
+standalone_mapper = realtime_nvblox.cli:main

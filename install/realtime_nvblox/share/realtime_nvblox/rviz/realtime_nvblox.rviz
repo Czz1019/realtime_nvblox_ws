@@ -1,0 +1,59 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: odom
+    Frame Rate: 30
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane: XY
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Mesh
+      Enabled: true
+      Topic:
+        Value: /realtime_nvblox/mesh
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF Slice
+      Enabled: true
+      Topic:
+        Value: /realtime_nvblox/esdf_slice
+      Color Transformer: Intensity
+      Size (Pixels): 3
+      Style: Points
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF 3D
+      Enabled: false
+      Topic:
+        Value: /realtime_nvblox/esdf_3d
+      Color Transformer: Intensity
+      Size (Pixels): 2
+      Style: Points
+    - Class: rviz_default_plugins/Path
+      Name: Camera Path
+      Enabled: true
+      Topic:
+        Value: /realtime_nvblox/camera_path
+    - Class: rviz_default_plugins/Pose
+      Name: Camera Pose
+      Enabled: true
+      Topic:
+        Value: /realtime_nvblox/camera_pose
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 5
+      Pitch: 0.5
+      Yaw: 0.8
+Window Geometry:
+  Width: 1400
+  Height: 900

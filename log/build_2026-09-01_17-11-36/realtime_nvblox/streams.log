@@ -1,0 +1,8 @@
+[0.499s] Invoking command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build --no-deps symlink_data
+[0.661s] usage: setup.py [global_opts] cmd1 [cmd1_opts] [cmd2 [cmd2_opts] ...]
+[0.661s]    or: setup.py --help [cmd1 cmd2 ...]
+[0.661s]    or: setup.py --help-commands
+[0.661s]    or: setup.py cmd --help
+[0.661s] 
+[0.661s] error: option --editable not recognized
+[0.680s] Invoked command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox' returned '1': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build --no-deps symlink_data

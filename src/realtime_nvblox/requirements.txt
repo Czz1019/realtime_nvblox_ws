@@ -1,0 +1,12 @@
+numpy==1.26.4
+scipy>=1.10,<1.16
+PyYAML>=6.0
+pyrealsense2==2.57.7.10387
+open3d>=0.19
+opencv-python>=4.8
+einops>=0.7
+imageio>=2.30
+matplotlib>=3.7
+nvtx>=0.2
+timm>=1.0
+transforms3d>=0.4
