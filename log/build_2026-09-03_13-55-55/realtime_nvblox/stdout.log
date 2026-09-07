@@ -1,0 +1,23 @@
+running egg_info
+writing ../../build/realtime_nvblox/realtime_nvblox.egg-info/PKG-INFO
+writing dependency_links to ../../build/realtime_nvblox/realtime_nvblox.egg-info/dependency_links.txt
+writing entry points to ../../build/realtime_nvblox/realtime_nvblox.egg-info/entry_points.txt
+writing requirements to ../../build/realtime_nvblox/realtime_nvblox.egg-info/requires.txt
+writing top-level names to ../../build/realtime_nvblox/realtime_nvblox.egg-info/top_level.txt
+adding license file 'LICENSE'
+writing manifest file '../../build/realtime_nvblox/realtime_nvblox.egg-info/SOURCES.txt'
+running build
+running build_py
+running install
+running install_lib
+running install_data
+copying config/esdf_benchmark.yaml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/config
+copying rviz/realtime_nvblox.rviz -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/rviz
+running install_egg_info
+removing '/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox-1.2.0-py3.10.egg-info' (and everything under it)
+Copying ../../build/realtime_nvblox/realtime_nvblox.egg-info to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox-1.2.0-py3.10.egg-info
+running install_scripts
+Installing check_environment script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+Installing ros_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+Installing standalone_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+writing list of installed files to '/home/czz/realtime_nvblox_ws/build/realtime_nvblox/install.log'

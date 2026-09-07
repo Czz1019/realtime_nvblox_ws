@@ -11,7 +11,7 @@ realsense:
   depth_fps: 60
   color_width: 640
   color_height: 480
-  color_fps: 15
+  color_fps: 30
   preferred_gyro_fps: 200
   preferred_accel_fps: 200
   warmup_frames: 30
@@ -45,18 +45,18 @@ mapping:
   color_queue_size: 2
   depth_hz: 30.0
   color_hz: 10.0
-  esdf_update_hz: 10.0
+  esdf_update_hz: 30.0
   mesh_update_hz: 5.0
   mesh_output_hz: 1.0
-  esdf_slice_output_hz: 2.0
-  esdf_3d_output_hz: 1.0
+  esdf_slice_output_hz: 5.0
+  esdf_3d_output_hz: 30.0
   stats_hz: 1.0
-  enable_color: true
-  enable_mesh: true
+  enable_color: false
+  enable_mesh: false
   enable_esdf: true
 
 esdf_slice:
-  enabled: true
+  enabled: false
   resolution_m: 0.10
   size_x_m: 8.0
   size_y_m: 8.0
@@ -67,6 +67,9 @@ esdf_slice:
 
 esdf_3d:
   enabled: true
+  generate_hz: 30.0
+  publish_hz: 30.0
+  publish_full_grid: true
   resolution_m: 0.15
   size_x_m: 4.0
   size_y_m: 4.0
@@ -82,6 +85,6 @@ output:
   directory: ~/nvblox_output
   map_filename: realtime_map.nvblox
   mesh_filename: realtime_mesh.ply
-  save_map_on_exit: true
-  save_mesh_on_exit: true
+  save_map_on_exit: false
+  save_mesh_on_exit: false
   stats_json: runtime_stats.json

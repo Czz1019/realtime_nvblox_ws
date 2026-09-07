@@ -77,3 +77,11 @@ class EsdfData:
     timestamp_ns: int
     points_xyz: np.ndarray
     distance_m: np.ndarray
+    version: int = 0
+
+
+@dataclass
+class Esdf3DRequest:
+    timestamp_ns: int
+    center_xyz: np.ndarray
+    version: int

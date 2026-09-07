@@ -1,0 +1,6 @@
+Invoking command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/czz/realtime_nvblox_ws/src/realtime_nvblox_msgs -DCMAKE_INSTALL_PREFIX=/home/czz/realtime_nvblox_ws/install/realtime_nvblox_msgs
+Invoked command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/czz/realtime_nvblox_ws/src/realtime_nvblox_msgs -DCMAKE_INSTALL_PREFIX=/home/czz/realtime_nvblox_ws/install/realtime_nvblox_msgs
+Invoking command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs -- -j20 -l20
+Invoked command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs -- -j20 -l20
+Invoking command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs
+Invoked command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/czz/realtime_nvblox_ws/build/realtime_nvblox_msgs

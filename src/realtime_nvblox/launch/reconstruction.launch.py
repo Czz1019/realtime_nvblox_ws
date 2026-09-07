@@ -15,7 +15,7 @@ def generate_launch_description():
     run_rviz = LaunchConfiguration('run_rviz')
     return LaunchDescription([
         DeclareLaunchArgument('config', default_value=default_config),
-        DeclareLaunchArgument('run_rviz', default_value='true'),
+        DeclareLaunchArgument('run_rviz', default_value='false'),
         Node(
             package='realtime_nvblox',
             executable='ros_mapper',
@@ -24,8 +24,11 @@ def generate_launch_description():
             parameters=[{'config': config}],
         ),
         Node(
-            package='rviz2', executable='rviz2', name='rviz2',
-            arguments=['-d', default_rviz], output='screen',
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            arguments=['-d', default_rviz],
+            output='screen',
             condition=IfCondition(run_rviz),
         ),
     ])

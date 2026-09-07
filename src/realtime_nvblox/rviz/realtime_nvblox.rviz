@@ -13,32 +13,48 @@ Visualization Manager:
       Enabled: true
       Cell Size: 1
       Plane: XY
+
     - Class: rviz_default_plugins/MarkerArray
       Name: Mesh
-      Enabled: true
-      Topic:
-        Value: /realtime_nvblox/mesh
-    - Class: rviz_default_plugins/PointCloud2
-      Name: ESDF Slice
-      Enabled: true
-      Topic:
-        Value: /realtime_nvblox/esdf_slice
-      Color Transformer: Intensity
-      Size (Pixels): 3
-      Style: Points
-    - Class: rviz_default_plugins/PointCloud2
-      Name: ESDF 3D
       Enabled: false
       Topic:
-        Value: /realtime_nvblox/esdf_3d
-      Color Transformer: Intensity
-      Size (Pixels): 2
+        Value: /realtime_nvblox/mesh
+
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF Slice
+      Enabled: false
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /realtime_nvblox/esdf_slice
+      Color Transformer: RGB8
+      Position Transformer: XYZ
+      Size (Pixels): 3
       Style: Points
+
+    - Class: rviz_default_plugins/PointCloud2
+      Name: ESDF 3D
+      Enabled: true
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /realtime_nvblox/esdf_3d
+      Color Transformer: RGB8
+      Position Transformer: XYZ
+      Size (Pixels): 3
+      Style: Points
+      Decay Time: 0
+
     - Class: rviz_default_plugins/Path
       Name: Camera Path
       Enabled: true
       Topic:
         Value: /realtime_nvblox/camera_path
+
     - Class: rviz_default_plugins/Pose
       Name: Camera Pose
       Enabled: true

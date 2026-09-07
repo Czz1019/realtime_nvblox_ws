@@ -1,0 +1,36 @@
+[0.852s] Invoking command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build
+[1.070s] running develop
+[1.216s] Invoked command in '/home/czz/realtime_nvblox_ws/build/realtime_nvblox' returned '0': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build
+[1.220s] Invoking command in '/home/czz/realtime_nvblox_ws/src/realtime_nvblox': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/realtime_nvblox build --build-base /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build install --record /home/czz/realtime_nvblox_ws/build/realtime_nvblox/install.log --single-version-externally-managed install_data --force
+[1.415s] running egg_info
+[1.428s] writing ../../build/realtime_nvblox/realtime_nvblox.egg-info/PKG-INFO
+[1.429s] writing dependency_links to ../../build/realtime_nvblox/realtime_nvblox.egg-info/dependency_links.txt
+[1.429s] writing entry points to ../../build/realtime_nvblox/realtime_nvblox.egg-info/entry_points.txt
+[1.429s] writing requirements to ../../build/realtime_nvblox/realtime_nvblox.egg-info/requires.txt
+[1.429s] writing top-level names to ../../build/realtime_nvblox/realtime_nvblox.egg-info/top_level.txt
+[1.522s] adding license file 'LICENSE'
+[1.523s] writing manifest file '../../build/realtime_nvblox/realtime_nvblox.egg-info/SOURCES.txt'
+[1.523s] running build
+[1.523s] running build_py
+[1.523s] copying realtime_nvblox/runtime.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+[1.524s] copying realtime_nvblox/nvblox_backend.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+[1.524s] copying realtime_nvblox/realsense_source.py -> /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build/lib/realtime_nvblox
+[1.525s] running install
+[1.527s] running install_lib
+[1.542s] running install_data
+[1.542s] copying resource/realtime_nvblox -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/ament_index/resource_index/packages
+[1.542s] copying package.xml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+[1.543s] copying README.md -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+[1.543s] copying DEPLOY.md -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox
+[1.543s] copying config/default.yaml -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/config
+[1.543s] copying launch/reconstruction.launch.py -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/launch
+[1.544s] copying rviz/realtime_nvblox.rviz -> /home/czz/realtime_nvblox_ws/install/realtime_nvblox/share/realtime_nvblox/rviz
+[1.544s] running install_egg_info
+[1.554s] removing '/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox-1.0.0-py3.10.egg-info' (and everything under it)
+[1.554s] Copying ../../build/realtime_nvblox/realtime_nvblox.egg-info to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages/realtime_nvblox-1.0.0-py3.10.egg-info
+[1.554s] running install_scripts
+[1.622s] Installing check_environment script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+[1.623s] Installing ros_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+[1.623s] Installing standalone_mapper script to /home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/realtime_nvblox
+[1.623s] writing list of installed files to '/home/czz/realtime_nvblox_ws/build/realtime_nvblox/install.log'
+[1.643s] Invoked command in '/home/czz/realtime_nvblox_ws/src/realtime_nvblox' returned '0': PYTHONPATH=/home/czz/realtime_nvblox_ws/build/realtime_nvblox/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/czz/realtime_nvblox_ws/install/realtime_nvblox/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/realtime_nvblox build --build-base /home/czz/realtime_nvblox_ws/build/realtime_nvblox/build install --record /home/czz/realtime_nvblox_ws/build/realtime_nvblox/install.log --single-version-externally-managed install_data --force

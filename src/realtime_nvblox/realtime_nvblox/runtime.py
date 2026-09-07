@@ -10,23 +10,28 @@ from typing import Callable
 import numpy as np
 
 from realtime_nvblox.cuvslam_backend import CuVslamBackend
+from realtime_nvblox.latest_slot import LatestSlot
 from realtime_nvblox.nvblox_backend import NvbloxBackend
 from realtime_nvblox.pose_buffer import PoseBuffer
 from realtime_nvblox.queues import DropOldestQueue
 from realtime_nvblox.rate_limiter import RateLimiter
 from realtime_nvblox.realsense_source import RealSenseSource, SourceQueues
 from realtime_nvblox.stats import RuntimeStats
-from realtime_nvblox.types import DepthFrame, EsdfData, MeshData, PoseSample
+from realtime_nvblox.types import DepthFrame, Esdf3DRequest, EsdfData, MeshData, PoseSample
 
 
 Callback = Callable[[object], None]
 
 
 class RealtimeNvbloxRuntime:
-    """Pure-Python realtime reconstruction pipeline.
+    """RealSense + cuVSLAM + nvblox_torch realtime reconstruction runtime.
 
-    No Isaac ROS component is used. ROS2, when desired, sits only above this
-    class as a visualization/output adapter.
+    Important architecture:
+      - VIO worker owns cuVSLAM tracking.
+      - Mapping worker does depth/color integration and ESDF/mesh updates.
+      - 3D ESDF worker queries complete 3D fields independently.
+      - 3D ESDF handoff is latest-only, so ROS/DDS cannot create an ever-growing
+        backlog inside the mapper.
     """
 
     def __init__(self, cfg: dict):
@@ -50,10 +55,14 @@ class RealtimeNvbloxRuntime:
         self.threads: list[threading.Thread] = []
         self.error: Exception | None = None
         self.callbacks: dict[str, list[Callback]] = {
-            'pose': [], 'mesh': [], 'esdf_slice': [], 'esdf_3d': [], 'stats': []
+            'pose': [], 'mesh': [], 'esdf_slice': [], 'stats': []
         }
         self.latest_pose: PoseSample | None = None
         self._save_lock = threading.Lock()
+
+        self.esdf3d_requests: LatestSlot[Esdf3DRequest] = LatestSlot()
+        self.esdf3d_results: LatestSlot[EsdfData] = LatestSlot()
+        self._esdf_version = 0
 
     def on(self, event: str, callback: Callback) -> None:
         if event not in self.callbacks:
@@ -68,38 +77,56 @@ class RealtimeNvbloxRuntime:
                 self.stats.inc(f'callback_error_{event}')
 
     def start(self) -> None:
-        self.calibration = self.source.start()
-        if bool(self.cfg['vslam'].get('enable', True)):
-            self.vslam = CuVslamBackend(self.calibration, self.cfg['vslam'])
-        else:
-            raise RuntimeError('vslam.enable must be true for moving-camera reconstruction.')
-        self.nvblox = NvbloxBackend(self.calibration, self.cfg['mapping'])
+        try:
+            self.calibration = self.source.start()
+            if bool(self.cfg['vslam'].get('enable', True)):
+                self.vslam = CuVslamBackend(self.calibration, self.cfg['vslam'])
+            else:
+                raise RuntimeError('vslam.enable must be true for moving-camera reconstruction.')
+            self.nvblox = NvbloxBackend(self.calibration, self.cfg['mapping'])
+
+            if bool(self.cfg.get('esdf_3d', {}).get('enabled', True)):
+                self.nvblox.prepare_esdf_grid(self.cfg['esdf_3d'])
+        except Exception:
+            self.source.stop()
+            raise
+
         self.threads = [
             threading.Thread(target=self._vio_loop_guarded, name='cuvslam-vio', daemon=True),
             threading.Thread(target=self._mapping_loop_guarded, name='nvblox-mapping', daemon=True),
+            threading.Thread(target=self._esdf3d_loop_guarded, name='nvblox-esdf3d', daemon=True),
         ]
         for t in self.threads:
             t.start()
+
+    def _set_error(self, exc: Exception) -> None:
+        if self.error is None:
+            self.error = exc
+        self.stop_event.set()
+        self.esdf3d_requests.close()
+        self.esdf3d_results.close()
 
     def _vio_loop_guarded(self) -> None:
         try:
             self._vio_loop()
         except Exception as exc:
-            self.error = exc
-            self.stop_event.set()
+            self._set_error(exc)
 
     def _mapping_loop_guarded(self) -> None:
         try:
             self._mapping_loop()
         except Exception as exc:
-            self.error = exc
-            self.stop_event.set()
+            self._set_error(exc)
+
+    def _esdf3d_loop_guarded(self) -> None:
+        try:
+            self._esdf3d_loop()
+        except Exception as exc:
+            self._set_error(exc)
 
     def _vio_loop(self) -> None:
         pending_imu = deque()
-        # cuVSLAM has one strictly increasing tracker timeline shared by
-        # register_imu_measurement() and track().  This timestamp therefore
-        # tracks BOTH the most recently registered IMU sample and image frame.
+        # cuVSLAM has one strictly increasing timeline shared by IMU and images.
         last_tracker_ts = None
         imu_wait_s = float(self.cfg['vslam'].get('imu_wait_ms', 5.0)) / 1000.0
 
@@ -110,9 +137,6 @@ class RealtimeNvbloxRuntime:
                 continue
 
             frame_ts = int(frame.timestamp_ns)
-
-            # A dropped/reordered RealSense image must never be sent backwards
-            # into cuVSLAM.
             if last_tracker_ts is not None and frame_ts <= last_tracker_ts:
                 self.stats.inc('vio_timestamp_drop')
                 continue
@@ -126,8 +150,6 @@ class RealtimeNvbloxRuntime:
                         drained = True
                 except queue.Empty:
                     pass
-
-                # Wait briefly until IMU buffering reaches this image time.
                 if pending_imu and pending_imu[-1].timestamp_ns >= frame_ts:
                     break
                 if time.monotonic() >= wait_deadline:
@@ -135,33 +157,21 @@ class RealtimeNvbloxRuntime:
                 if not drained:
                     time.sleep(0.0005)
 
-            # Discard stale/duplicate IMU samples which are not newer than the
-            # last event already accepted by cuVSLAM.
-            while (
-                pending_imu
-                and last_tracker_ts is not None
-                and pending_imu[0].timestamp_ns <= last_tracker_ts
-            ):
+            while pending_imu and last_tracker_ts is not None and pending_imu[0].timestamp_ns <= last_tracker_ts:
                 pending_imu.popleft()
                 self.stats.inc('imu_timestamp_drop')
 
-            # IMPORTANT: register only IMU samples STRICTLY EARLIER than the
-            # image.  An IMU sample at exactly the same timestamp followed by
-            # track(frame_ts) would violate cuVSLAM's strict monotonic rule.
+            # IMU at exactly frame_ts must not be registered before track(frame_ts).
             while pending_imu and pending_imu[0].timestamp_ns < frame_ts:
                 sample = pending_imu.popleft()
                 sample_ts = int(sample.timestamp_ns)
-
                 if last_tracker_ts is not None and sample_ts <= last_tracker_ts:
                     self.stats.inc('imu_timestamp_drop')
                     continue
-
                 self.vslam.register_imu(sample)
                 last_tracker_ts = sample_ts
                 self.stats.inc('imu_registered')
 
-            # At this point frame_ts is guaranteed to be strictly newer than
-            # every event previously passed to the tracker.
             if last_tracker_ts is not None and frame_ts <= last_tracker_ts:
                 self.stats.inc('vio_timestamp_drop')
                 continue
@@ -169,9 +179,6 @@ class RealtimeNvbloxRuntime:
             start = time.perf_counter()
             pose = self.vslam.track(frame)
             self.stats.add_latency('vio_track', (time.perf_counter() - start) * 1000.0)
-
-            # The image itself is now the newest event on the cuVSLAM timeline,
-            # regardless of whether odometry was successfully estimated.
             last_tracker_ts = frame_ts
 
             if pose is None:
@@ -200,24 +207,27 @@ class RealtimeNvbloxRuntime:
         zz = np.full_like(xx, center[2], dtype=np.float32)
         return np.stack([xx, yy, zz], axis=-1).reshape(-1, 3).astype(np.float32)
 
-    @staticmethod
-    def _grid_3d(center: np.ndarray, cfg: dict) -> np.ndarray:
-        r = float(cfg['resolution_m'])
-        xs = np.arange(center[0] - cfg['size_x_m'] / 2, center[0] + cfg['size_x_m'] / 2 + r * 0.5, r)
-        ys = np.arange(center[1] - cfg['size_y_m'] / 2, center[1] + cfg['size_y_m'] / 2 + r * 0.5, r)
-        zs = np.arange(center[2] - cfg['size_z_m'] / 2, center[2] + cfg['size_z_m'] / 2 + r * 0.5, r)
-        xx, yy, zz = np.meshgrid(xs, ys, zs, indexing='xy')
-        return np.stack([xx, yy, zz], axis=-1).reshape(-1, 3).astype(np.float32)
+    def _center_from_pose(self, pose: PoseSample, cfg: dict) -> np.ndarray:
+        if bool(cfg.get('center_on_camera', True)):
+            center = pose.T_world_rig[:3, 3].astype(np.float32).copy()
+            center[0] += float(cfg.get('center_x_m', 0.0))
+            center[1] += float(cfg.get('center_y_m', 0.0))
+            center[2] += float(cfg.get('z_offset_m', 0.0))
+            return center
+        return np.asarray([
+            cfg.get('center_x_m', 0.0),
+            cfg.get('center_y_m', 0.0),
+            cfg.get('center_z_m', 1.0),
+        ], dtype=np.float32)
 
     def _mapping_loop(self) -> None:
         mcfg = self.cfg['mapping']
         depth_lim = RateLimiter(float(mcfg.get('depth_hz', 30.0)))
         color_lim = RateLimiter(float(mcfg.get('color_hz', 10.0)))
-        esdf_lim = RateLimiter(float(mcfg.get('esdf_update_hz', 10.0)))
+        esdf_lim = RateLimiter(float(mcfg.get('esdf_update_hz', 30.0)))
         mesh_lim = RateLimiter(float(mcfg.get('mesh_update_hz', 5.0)))
         mesh_out_lim = RateLimiter(float(mcfg.get('mesh_output_hz', 1.0)))
         slice_out_lim = RateLimiter(float(mcfg.get('esdf_slice_output_hz', 2.0)))
-        esdf3d_out_lim = RateLimiter(float(mcfg.get('esdf_3d_output_hz', 1.0)))
         stats_lim = RateLimiter(float(mcfg.get('stats_hz', 1.0)))
 
         while not self.stop_event.is_set():
@@ -229,12 +239,13 @@ class RealtimeNvbloxRuntime:
                 continue
 
             integrated = False
+            depth_pose = None
             if depth_lim.ready():
-                pose = self._pose_for(depth.timestamp_ns)
-                if pose is None:
+                depth_pose = self._pose_for(depth.timestamp_ns)
+                if depth_pose is None:
                     self.stats.inc('depth_pose_drop')
                 else:
-                    T_world_depth = pose.T_world_rig @ self.calibration.T_rig_depth
+                    T_world_depth = depth_pose.T_world_rig @ self.calibration.T_rig_depth
                     start = time.perf_counter()
                     self.nvblox.integrate_depth(depth.depth_raw, T_world_depth)
                     self.stats.add_latency('depth_integrate', (time.perf_counter() - start) * 1000.0)
@@ -262,10 +273,20 @@ class RealtimeNvbloxRuntime:
                 self.nvblox.update_esdf()
                 self.stats.add_latency('esdf_update', (time.perf_counter() - start) * 1000.0)
                 self.stats.inc('esdf_updated')
+
+                self._esdf_version += 1
+                ecfg = self.cfg['esdf_3d']
+                if bool(ecfg.get('enabled', True)) and depth_pose is not None:
+                    req = Esdf3DRequest(
+                        timestamp_ns=int(depth.timestamp_ns),
+                        center_xyz=self._center_from_pose(depth_pose, ecfg),
+                        version=self._esdf_version,
+                    )
+                    self.esdf3d_requests.put(req)
+                    self.stats.inc('esdf_3d_requested')
+
                 if slice_out_lim.ready(now):
                     self._output_esdf_slice(depth.timestamp_ns)
-                if esdf3d_out_lim.ready(now):
-                    self._output_esdf_3d(depth.timestamp_ns)
 
             if integrated and bool(mcfg.get('enable_mesh', True)) and mesh_lim.ready(now):
                 start = time.perf_counter()
@@ -281,6 +302,41 @@ class RealtimeNvbloxRuntime:
 
             if stats_lim.ready(now):
                 self._publish_stats()
+
+    def _esdf3d_loop(self) -> None:
+        cfg = self.cfg['esdf_3d']
+        if not bool(cfg.get('enabled', True)):
+            while not self.stop_event.is_set():
+                time.sleep(0.2)
+            return
+
+        hz = float(cfg.get('generate_hz', self.cfg['mapping'].get('esdf_3d_output_hz', 30.0)))
+        limiter = RateLimiter(hz)
+        last_sequence = 0
+        last_version = 0
+
+        while not self.stop_event.is_set():
+            sequence, req = self.esdf3d_requests.wait_newer(last_sequence, timeout=0.2)
+            if req is None:
+                continue
+            if sequence > last_sequence + 1:
+                self.stats.inc('esdf_3d_request_skipped', sequence - last_sequence - 1)
+            last_sequence = sequence
+
+            now = time.monotonic()
+            if not limiter.ready(now):
+                self.stats.inc('esdf_3d_rate_skipped')
+                continue
+
+            if req.version <= last_version:
+                continue
+            last_version = req.version
+
+            start = time.perf_counter()
+            pts, dist = self.nvblox.query_esdf_grid(req.center_xyz, cfg)
+            self.stats.add_latency('esdf_3d_query', (time.perf_counter() - start) * 1000.0)
+            self.esdf3d_results.put(EsdfData(req.timestamp_ns, pts, dist, version=req.version))
+            self.stats.inc('esdf_3d_generated')
 
     def _query_center(self, fallback_z: float = 0.0) -> np.ndarray:
         if self.latest_pose is None:
@@ -303,25 +359,8 @@ class RealtimeNvbloxRuntime:
         self._emit('esdf_slice', EsdfData(ts, pts, d))
         self.stats.inc('esdf_slice_output')
 
-    def _output_esdf_3d(self, ts: int) -> None:
-        cfg = self.cfg['esdf_3d']
-        if not bool(cfg.get('enabled', True)):
-            return
-        if bool(cfg.get('center_on_camera', True)):
-            center = self._query_center(float(cfg.get('center_z_m', 1.0)))
-            center[2] += float(cfg.get('z_offset_m', 0.0))
-        else:
-            center = np.array([
-                cfg.get('center_x_m', 0.0), cfg.get('center_y_m', 0.0), cfg.get('center_z_m', 1.0)
-            ], dtype=np.float32)
-        pts = self._grid_3d(center, cfg)
-        start = time.perf_counter()
-        d = self.nvblox.query_esdf(pts)
-        self.stats.add_latency('esdf_3d_query', (time.perf_counter() - start) * 1000.0)
-        self._emit('esdf_3d', EsdfData(ts, pts, d))
-        self.stats.inc('esdf_3d_output')
-
     def _extra_stats(self) -> dict:
+        esdf_seq, latest = self.esdf3d_results.latest()
         return {
             'queues': {
                 'vio': self.queues.vio.qsize(), 'depth': self.queues.depth.qsize(),
@@ -330,6 +369,11 @@ class RealtimeNvbloxRuntime:
             'queue_drops': {
                 'vio': self.queues.vio.dropped, 'depth': self.queues.depth.dropped,
                 'color': self.queues.color.dropped, 'imu': self.queues.imu.dropped,
+            },
+            'esdf_3d': {
+                'latest_sequence': int(esdf_seq),
+                'latest_version': int(latest.version) if latest is not None else 0,
+                'num_points': int(len(latest.distance_m)) if latest is not None else 0,
             },
             'realsense': dict(self.source.stats),
             'vslam': {
@@ -341,8 +385,7 @@ class RealtimeNvbloxRuntime:
         }
 
     def _publish_stats(self) -> None:
-        snap = self.stats.snapshot(self._extra_stats())
-        self._emit('stats', snap)
+        self._emit('stats', self.stats.snapshot(self._extra_stats()))
 
     def save_map(self) -> Path:
         with self._save_lock:
@@ -355,7 +398,11 @@ class RealtimeNvbloxRuntime:
             return self.nvblox.save_mesh(out / self.cfg['output']['mesh_filename'])
 
     def stop(self) -> None:
+        if self.stop_event.is_set() and self.nvblox is None:
+            return
         self.stop_event.set()
+        self.esdf3d_requests.close()
+        self.esdf3d_results.close()
         self.source.stop()
         for t in self.threads:
             if t.is_alive():
@@ -363,7 +410,7 @@ class RealtimeNvbloxRuntime:
         if self.nvblox is not None:
             out_cfg = self.cfg['output']
             try:
-                if bool(out_cfg.get('save_map_on_exit', True)):
+                if bool(out_cfg.get('save_map_on_exit', False)):
                     self.save_map()
                 if bool(out_cfg.get('save_mesh_on_exit', True)):
                     self.save_mesh()
