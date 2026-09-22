@@ -15,6 +15,7 @@ from realtime_nvblox.nvblox_backend import NvbloxBackend
 from realtime_nvblox.pose_buffer import PoseBuffer
 from realtime_nvblox.queues import DropOldestQueue
 from realtime_nvblox.rate_limiter import RateLimiter
+from realtime_nvblox.robot_pose import RobotPoseProvider
 from realtime_nvblox.realsense_source import RealSenseSource, SourceQueues
 from realtime_nvblox.stats import RuntimeStats
 from realtime_nvblox.types import DepthFrame, Esdf3DRequest, EsdfData, MeshData, PoseSample
@@ -45,7 +46,12 @@ class RealtimeNvbloxRuntime:
             color=DropOldestQueue(int(mcfg.get('color_queue_size', 2))),
             imu=DropOldestQueue(int(vcfg.get('imu_queue_size', 2000))),
         )
-        self.source = RealSenseSource(rcfg, self.queues)
+        self.pose_source = cfg.get('pose_source', 'cuvslam')
+        if self.pose_source not in ('cuvslam', 'robot'):
+            raise ValueError('pose_source must be cuvslam or robot.')
+        self.robot_pose = (RobotPoseProvider(cfg.get('robot_pose', {}), cfg['frames'])
+                           if self.pose_source == 'robot' else None)
+        self.source = RealSenseSource(rcfg, self.queues, robot_mode=self.robot_pose is not None)
         self.pose_buffer = PoseBuffer(int(vcfg.get('pose_buffer_size', 512)))
         self.vslam = None
         self.nvblox = None
@@ -63,6 +69,7 @@ class RealtimeNvbloxRuntime:
         self.esdf3d_requests: LatestSlot[Esdf3DRequest] = LatestSlot()
         self.esdf3d_results: LatestSlot[EsdfData] = LatestSlot()
         self._esdf_version = 0
+        self._latest_esdf_request: Esdf3DRequest | None = None
 
     def on(self, event: str, callback: Callback) -> None:
         if event not in self.callbacks:
@@ -79,7 +86,9 @@ class RealtimeNvbloxRuntime:
     def start(self) -> None:
         try:
             self.calibration = self.source.start()
-            if bool(self.cfg['vslam'].get('enable', True)):
+            if self.robot_pose is not None:
+                self.robot_pose.configure_calibration(self.calibration)
+            elif bool(self.cfg['vslam'].get('enable', True)):
                 self.vslam = CuVslamBackend(self.calibration, self.cfg['vslam'])
             else:
                 raise RuntimeError('vslam.enable must be true for moving-camera reconstruction.')
@@ -92,10 +101,11 @@ class RealtimeNvbloxRuntime:
             raise
 
         self.threads = [
-            threading.Thread(target=self._vio_loop_guarded, name='cuvslam-vio', daemon=True),
             threading.Thread(target=self._mapping_loop_guarded, name='nvblox-mapping', daemon=True),
             threading.Thread(target=self._esdf3d_loop_guarded, name='nvblox-esdf3d', daemon=True),
         ]
+        if self.robot_pose is None:
+            self.threads.insert(0, threading.Thread(target=self._vio_loop_guarded, name='cuvslam-vio', daemon=True))
         for t in self.threads:
             t.start()
 
@@ -190,13 +200,30 @@ class RealtimeNvbloxRuntime:
             self.stats.inc('vio_pose')
             self._emit('pose', pose)
 
+    def add_robot_pose(self, timestamp_ns: int, T_base_tool: np.ndarray) -> bool:
+        if self.robot_pose is None:
+            raise RuntimeError('Robot pose input requires pose_source: robot.')
+        accepted = self.robot_pose.add(timestamp_ns, T_base_tool)
+        self.stats.inc('robot_pose_received' if accepted else 'robot_pose_out_of_order')
+        return accepted
+
     def _pose_for(self, ts_ns: int) -> PoseSample | None:
-        vcfg = self.cfg['vslam']
-        return self.pose_buffer.query(
-            ts_ns,
-            max_error_ms=float(vcfg.get('max_pose_error_ms', 60.0)),
-            wait_ms=float(vcfg.get('pose_wait_ms', 35.0)),
-        )
+        start = time.perf_counter()
+        if self.robot_pose is not None:
+            pose = self.robot_pose.query(ts_ns)
+        else:
+            vcfg = self.cfg['vslam']
+            pose = self.pose_buffer.query(
+                ts_ns,
+                max_error_ms=float(vcfg.get('max_pose_error_ms', 60.0)),
+                wait_ms=float(vcfg.get('pose_wait_ms', 35.0)),
+            )
+        self.stats.add_latency('pose_wait', (time.perf_counter() - start) * 1000.0)
+        if pose is None or not pose.tracking_ok:
+            return None
+        self.stats.add_latency('pose_time_error', pose.pose_error_ms)
+        self.stats.inc('pose_interpolated' if pose.interpolated else 'pose_exact_or_nearest')
+        return pose
 
     @staticmethod
     def _grid_2d(center: np.ndarray, cfg: dict) -> np.ndarray:
@@ -210,9 +237,14 @@ class RealtimeNvbloxRuntime:
     def _center_from_pose(self, pose: PoseSample, cfg: dict) -> np.ndarray:
         if bool(cfg.get('center_on_camera', True)):
             center = pose.T_world_rig[:3, 3].astype(np.float32).copy()
-            center[0] += float(cfg.get('center_x_m', 0.0))
-            center[1] += float(cfg.get('center_y_m', 0.0))
-            center[2] += float(cfg.get('z_offset_m', 0.0))
+            offset = np.asarray([cfg.get('center_x_m', 0.0), cfg.get('center_y_m', 0.0),
+                                 cfg.get('z_offset_m', 0.0)], dtype=np.float32)
+            offset_frame = cfg.get('offset_frame', 'world')
+            if offset_frame not in ('world', 'camera'):
+                raise ValueError('esdf_3d.offset_frame must be world or camera.')
+            if offset_frame == 'camera':
+                offset = pose.T_world_rig[:3, :3] @ offset
+            center += offset
             return center
         return np.asarray([
             cfg.get('center_x_m', 0.0),
@@ -229,18 +261,21 @@ class RealtimeNvbloxRuntime:
         mesh_out_lim = RateLimiter(float(mcfg.get('mesh_output_hz', 1.0)))
         slice_out_lim = RateLimiter(float(mcfg.get('esdf_slice_output_hz', 2.0)))
         stats_lim = RateLimiter(float(mcfg.get('stats_hz', 1.0)))
+        dirty_pose = None
+        dirty_timestamp_ns = 0
 
         while not self.stop_event.is_set():
+            if self.source.error is not None:
+                raise self.source.error
+            timeout = min(0.1, esdf_lim.remaining()) if dirty_pose is not None else 0.1
             try:
-                depth: DepthFrame = self.queues.depth.get(timeout=0.1)
+                depth: DepthFrame = self.queues.depth.get(timeout=timeout)
             except queue.Empty:
-                if stats_lim.ready():
-                    self._publish_stats()
-                continue
+                depth = None
 
             integrated = False
             depth_pose = None
-            if depth_lim.ready():
+            if depth is not None and depth_lim.ready():
                 depth_pose = self._pose_for(depth.timestamp_ns)
                 if depth_pose is None:
                     self.stats.inc('depth_pose_drop')
@@ -251,6 +286,14 @@ class RealtimeNvbloxRuntime:
                     self.stats.add_latency('depth_integrate', (time.perf_counter() - start) * 1000.0)
                     self.stats.inc('depth_integrated')
                     integrated = True
+                    dirty_pose = depth_pose
+                    dirty_timestamp_ns = depth.timestamp_ns
+                    if self.robot_pose is not None:
+                        self.stats.add_latency('depth_age', (time.time_ns() - depth.timestamp_ns) / 1e6)
+                        self.latest_pose = depth_pose
+                        self._emit('pose', depth_pose)
+            elif depth is not None:
+                self.stats.inc('depth_rate_skipped')
 
             try:
                 color = self.queues.color.get_nowait()
@@ -268,25 +311,28 @@ class RealtimeNvbloxRuntime:
                     self.stats.inc('color_integrated')
 
             now = time.monotonic()
-            if integrated and bool(mcfg.get('enable_esdf', True)) and esdf_lim.ready(now):
+            if dirty_pose is not None and bool(mcfg.get('enable_esdf', True)) and esdf_lim.ready(now):
                 start = time.perf_counter()
-                self.nvblox.update_esdf()
-                self.stats.add_latency('esdf_update', (time.perf_counter() - start) * 1000.0)
-                self.stats.inc('esdf_updated')
-
-                self._esdf_version += 1
-                ecfg = self.cfg['esdf_3d']
-                if bool(ecfg.get('enabled', True)) and depth_pose is not None:
-                    req = Esdf3DRequest(
-                        timestamp_ns=int(depth.timestamp_ns),
-                        center_xyz=self._center_from_pose(depth_pose, ecfg),
+                # Metadata and ESDF layer advance under the same mapper lock.
+                with self.nvblox.lock:
+                    self.nvblox.update_esdf()
+                    self._esdf_version += 1
+                    ecfg = self.cfg['esdf_3d']
+                    self._latest_esdf_request = Esdf3DRequest(
+                        timestamp_ns=int(dirty_timestamp_ns),
+                        center_xyz=self._center_from_pose(dirty_pose, ecfg),
                         version=self._esdf_version,
                     )
-                    self.esdf3d_requests.put(req)
-                    self.stats.inc('esdf_3d_requested')
-
+                    if bool(ecfg.get('enabled', True)):
+                        self.esdf3d_requests.put(self._latest_esdf_request)
+                        self.stats.inc('esdf_3d_requested')
+                self.stats.add_latency('esdf_update', (time.perf_counter() - start) * 1000.0)
+                self.stats.inc('esdf_updated')
                 if slice_out_lim.ready(now):
-                    self._output_esdf_slice(depth.timestamp_ns)
+                    self._output_esdf_slice(dirty_timestamp_ns)
+                dirty_pose = None
+            elif dirty_pose is not None and not bool(mcfg.get('enable_esdf', True)):
+                dirty_pose = None
 
             if integrated and bool(mcfg.get('enable_mesh', True)) and mesh_lim.ready(now):
                 start = time.perf_counter()
@@ -306,10 +352,7 @@ class RealtimeNvbloxRuntime:
     def _esdf3d_loop(self) -> None:
         cfg = self.cfg['esdf_3d']
         if not bool(cfg.get('enabled', True)):
-            while not self.stop_event.is_set():
-                time.sleep(0.2)
             return
-
         hz = float(cfg.get('generate_hz', self.cfg['mapping'].get('esdf_3d_output_hz', 30.0)))
         limiter = RateLimiter(hz)
         last_sequence = 0
@@ -319,21 +362,25 @@ class RealtimeNvbloxRuntime:
             sequence, req = self.esdf3d_requests.wait_newer(last_sequence, timeout=0.2)
             if req is None:
                 continue
-            if sequence > last_sequence + 1:
-                self.stats.inc('esdf_3d_request_skipped', sequence - last_sequence - 1)
-            last_sequence = sequence
-
-            now = time.monotonic()
-            if not limiter.ready(now):
-                self.stats.inc('esdf_3d_rate_skipped')
+            # Keep pending work until its deadline, then sample the newest request.
+            if self.stop_event.wait(limiter.remaining()):
+                break
+            if not limiter.ready():
                 continue
-
-            if req.version <= last_version:
-                continue
-            last_version = req.version
-
             start = time.perf_counter()
-            pts, dist = self.nvblox.query_esdf_grid(req.center_xyz, cfg)
+            with self.nvblox.lock:
+                self.stats.add_latency('esdf_3d_lock_wait', (time.perf_counter() - start) * 1000.0)
+                sequence, _ = self.esdf3d_requests.latest()
+                req = self._latest_esdf_request
+                if sequence > last_sequence + 1:
+                    self.stats.inc('esdf_3d_request_skipped', sequence - last_sequence - 1)
+                last_sequence = sequence
+                if req is None or req.version <= last_version:
+                    continue
+                pts, dist = self.nvblox.query_esdf_grid(req.center_xyz, cfg)
+                last_version = req.version
+                for name, ms in self.nvblox.query_timings_ms.items():
+                    self.stats.add_latency(name, ms)
             self.stats.add_latency('esdf_3d_query', (time.perf_counter() - start) * 1000.0)
             self.esdf3d_results.put(EsdfData(req.timestamp_ns, pts, dist, version=req.version))
             self.stats.inc('esdf_3d_generated')
@@ -376,6 +423,7 @@ class RealtimeNvbloxRuntime:
                 'num_points': int(len(latest.distance_m)) if latest is not None else 0,
             },
             'realsense': dict(self.source.stats),
+            'pose_source': self.pose_source,
             'vslam': {
                 'tracked_frames': getattr(self.vslam, 'tracked_frames', 0),
                 'failed_frames': getattr(self.vslam, 'failed_frames', 0),

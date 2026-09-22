@@ -1,3 +1,5 @@
+pose_source: cuvslam  # Use robot_eye_in_hand.yaml for the calibrated robot setup.
+
 frames:
   global: odom
   rig: camera_left_optical_frame
@@ -74,6 +76,7 @@ esdf_3d:
   size_x_m: 4.0
   size_y_m: 4.0
   size_z_m: 2.0
+  offset_frame: world  # camera rotates x/y/z_offset with the optical frame
   center_on_camera: true
   center_x_m: 0.0
   center_y_m: 0.0

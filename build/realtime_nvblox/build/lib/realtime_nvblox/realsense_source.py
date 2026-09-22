@@ -33,7 +33,7 @@ def _extrinsics_matrix(source_profile, target_profile) -> np.ndarray:
     """Return T_target_source from librealsense source.get_extrinsics_to(target)."""
     ext = source_profile.get_extrinsics_to(target_profile)
     T = np.eye(4, dtype=np.float32)
-    T[:3, :3] = np.asarray(ext.rotation, dtype=np.float32).reshape(3, 3)
+    T[:3, :3] = np.asarray(ext.rotation, dtype=np.float32).reshape(3, 3, order='F')
     T[:3, 3] = np.asarray(ext.translation, dtype=np.float32)
     return T
 
@@ -98,8 +98,10 @@ class SourceQueues:
 
 
 class RealSenseSource:
-    def __init__(self, cfg: dict, queues: SourceQueues):
+    def __init__(self, cfg: dict, queues: SourceQueues, robot_mode: bool = False):
         self.cfg = cfg
+        self.robot_mode = robot_mode
+        self.error: Exception | None = None
         self.queues = queues
         self.stop_event = threading.Event()
         self.video_pipe = rs.pipeline()
@@ -120,7 +122,27 @@ class RealSenseSource:
         self.stats = {
             'video_frames': 0, 'depth_frames': 0, 'vio_frames': 0,
             'color_frames': 0, 'imu_frames': 0, 'unknown_emitter_frames': 0,
+            'timestamp_drops': 0,
         }
+
+    def _timestamp_ns(self, frame) -> int | None:
+        if self.robot_mode:
+            domain = frame.get_frame_timestamp_domain()
+            self.stats['timestamp_domain'] = str(domain)
+            if domain not in (rs.timestamp_domain.global_time, rs.timestamp_domain.system_time):
+                # Global-time conversion may need a few frames to initialize.
+                self.stats['timestamp_drops'] += 1
+                if self.stats['timestamp_drops'] >= 300:
+                    self.error = RuntimeError('RealSense did not enter a host/system timestamp domain.')
+                    self.stop_event.set()
+                return None
+            stamp = _device_timestamp_ns(frame)
+            if abs(time.time_ns() - stamp) > 5_000_000_000:
+                self.error = RuntimeError('RealSense global timestamp differs from host time by over 5 seconds.')
+                self.stop_event.set()
+                return None
+            return stamp
+        return _device_timestamp_ns(frame)
 
     def _serial(self) -> str:
         requested = str(self.cfg.get('serial', '')).strip()
@@ -178,8 +200,9 @@ class RealSenseSource:
         cfg.enable_stream(rs.stream.infrared, 1, dw, dh, rs.format.y8, dfps)
         cfg.enable_stream(rs.stream.infrared, 2, dw, dh, rs.format.y8, dfps)
         cfg.enable_stream(rs.stream.color, cw, ch, rs.format.rgb8, cfps)
-        cfg.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, accel_fps)
-        cfg.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, gyro_fps)
+        if not self.robot_mode:
+            cfg.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, accel_fps)
+            cfg.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, gyro_fps)
 
         profile = None
         try:
@@ -192,7 +215,7 @@ class RealSenseSource:
             right_p = profile.get_stream(rs.stream.infrared, 2)
             depth_p = profile.get_stream(rs.stream.depth)
             color_p = profile.get_stream(rs.stream.color)
-            accel_p = profile.get_stream(rs.stream.accel)
+            accel_p = profile.get_stream(rs.stream.accel) if not self.robot_mode else None
             depth_sensor = profile.get_device().first_depth_sensor()
 
             return Calibration(
@@ -203,7 +226,7 @@ class RealSenseSource:
                 T_rig_right=_extrinsics_matrix(right_p, left_p),
                 T_rig_depth=_extrinsics_matrix(depth_p, left_p),
                 T_rig_color=_extrinsics_matrix(color_p, left_p),
-                T_rig_imu=_extrinsics_matrix(accel_p, left_p),
+                T_rig_imu=_extrinsics_matrix(accel_p, left_p) if accel_p is not None else np.eye(4, dtype=np.float32),
                 depth_scale_m=float(depth_sensor.get_depth_scale()),
                 imu_frequency_hz=float(gyro_fps),
             )
@@ -236,12 +259,14 @@ class RealSenseSource:
         if device is None:
             raise RuntimeError(f'RealSense serial {serial} disappeared before startup.')
 
-        accel_fps = self._nearest_motion_fps(
-            device, rs.stream.accel, int(self.cfg.get('preferred_accel_fps', 200))
-        )
-        gyro_fps = self._nearest_motion_fps(
-            device, rs.stream.gyro, int(self.cfg.get('preferred_gyro_fps', 200))
-        )
+        accel_fps = gyro_fps = 0
+        if not self.robot_mode:
+            accel_fps = self._nearest_motion_fps(
+                device, rs.stream.accel, int(self.cfg.get('preferred_accel_fps', 200))
+            )
+            gyro_fps = self._nearest_motion_fps(
+                device, rs.stream.gyro, int(self.cfg.get('preferred_gyro_fps', 200))
+            )
 
         try:
             # IMPORTANT: obtain all static calibration from stream profiles
@@ -254,8 +279,9 @@ class RealSenseSource:
             video_cfg = rs.config()
             video_cfg.enable_device(serial)
             video_cfg.enable_stream(rs.stream.depth, dw, dh, rs.format.z16, dfps)
-            video_cfg.enable_stream(rs.stream.infrared, 1, dw, dh, rs.format.y8, dfps)
-            video_cfg.enable_stream(rs.stream.infrared, 2, dw, dh, rs.format.y8, dfps)
+            if not self.robot_mode:
+                video_cfg.enable_stream(rs.stream.infrared, 1, dw, dh, rs.format.y8, dfps)
+                video_cfg.enable_stream(rs.stream.infrared, 2, dw, dh, rs.format.y8, dfps)
             self.video_profile = self.video_pipe.start(video_cfg)
 
             depth_sensor = self.video_profile.get_device().first_depth_sensor()
@@ -264,7 +290,7 @@ class RealSenseSource:
                     rs.option.frames_queue_size,
                     float(self.cfg.get('sensor_queue_size', 2)),
                 )
-            if bool(self.cfg.get('emitter_flashing', True)):
+            if not self.robot_mode and bool(self.cfg.get('emitter_flashing', True)):
                 if depth_sensor.supports(rs.option.emitter_enabled):
                     depth_sensor.set_option(rs.option.emitter_enabled, 1.0)
                 if not depth_sensor.supports(rs.option.emitter_on_off):
@@ -272,6 +298,11 @@ class RealSenseSource:
                         'This RealSense depth sensor does not support emitter_on_off.'
                     )
                 depth_sensor.set_option(rs.option.emitter_on_off, 1.0)
+            else:
+                if depth_sensor.supports(rs.option.emitter_on_off):
+                    depth_sensor.set_option(rs.option.emitter_on_off, 0.0)
+                if depth_sensor.supports(rs.option.emitter_enabled):
+                    depth_sensor.set_option(rs.option.emitter_enabled, 1.0)
 
             # Keep color independent so 15 Hz color cannot throttle the 60 Hz
             # stereo/depth sensor pipeline.
@@ -279,13 +310,20 @@ class RealSenseSource:
             color_cfg.enable_device(serial)
             color_cfg.enable_stream(rs.stream.color, cw, ch, rs.format.rgb8, cfps)
             self.color_profile = self.color_pipe.start(color_cfg)
+            if self.robot_mode:
+                # Configure the sensors owned by the actual running pipelines.
+                for profile in (self.video_profile, self.color_profile):
+                    for sensor in profile.get_device().query_sensors():
+                        if sensor.supports(rs.option.global_time_enabled):
+                            sensor.set_option(rs.option.global_time_enabled, 1.0)
 
             # Keep motion independent as well; callback pushes bounded IMU data.
-            motion_cfg = rs.config()
-            motion_cfg.enable_device(serial)
-            motion_cfg.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, accel_fps)
-            motion_cfg.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, gyro_fps)
-            self.motion_profile = self.motion_pipe.start(motion_cfg, self._motion_callback)
+            if not self.robot_mode:
+                motion_cfg = rs.config()
+                motion_cfg.enable_device(serial)
+                motion_cfg.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, accel_fps)
+                motion_cfg.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, gyro_fps)
+                self.motion_profile = self.motion_pipe.start(motion_cfg, self._motion_callback)
 
             self.threads = [
                 threading.Thread(target=self._video_loop, name='rs-depth-ir', daemon=True),
@@ -337,22 +375,25 @@ class RealSenseSource:
                 depth = frames.get_depth_frame()
                 left = frames.get_infrared_frame(1)
                 right = frames.get_infrared_frame(2)
-                if not depth or not left or not right:
+                if not depth or (not self.robot_mode and (not left or not right)):
                     continue
                 seen += 1
                 self.stats['video_frames'] += 1
                 if seen <= warmup:
                     continue
                 depth_np = np.asanyarray(depth.get_data()).copy()
-                emitter_on = self._emitter.is_on(depth, depth_np)
+                flashing = not self.robot_mode and bool(self.cfg.get('emitter_flashing', True))
+                emitter_on = self._emitter.is_on(depth, depth_np) if flashing else True
                 if emitter_on is None:
                     self.stats['unknown_emitter_frames'] += 1
                     continue
-                depth_ts = _device_timestamp_ns(depth)
+                depth_ts = self._timestamp_ns(depth)
+                if depth_ts is None:
+                    continue
                 if emitter_on:
                     self.queues.depth.put(DepthFrame(depth_ts, depth_np))
                     self.stats['depth_frames'] += 1
-                else:
+                if not self.robot_mode and (not flashing or not emitter_on):
                     left_np = np.asanyarray(left.get_data()).copy()
                     right_np = np.asanyarray(right.get_data()).copy()
                     # cuVSLAM tracks the stereo IR images, so use the left IR
@@ -376,7 +417,10 @@ class RealSenseSource:
                 if not color:
                     continue
                 arr = np.asanyarray(color.get_data()).copy()
-                self.queues.color.put(ColorFrame(_device_timestamp_ns(color), arr))
+                stamp = self._timestamp_ns(color)
+                if stamp is None:
+                    continue
+                self.queues.color.put(ColorFrame(stamp, arr))
                 self.stats['color_frames'] += 1
             except RuntimeError:
                 if not self.stop_event.is_set():

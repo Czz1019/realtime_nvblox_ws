@@ -4,6 +4,7 @@ import ctypes
 import importlib.util
 from pathlib import Path
 import threading
+import time
 
 import numpy as np
 
@@ -52,6 +53,7 @@ class NvbloxBackend:
         self.loaded_lib = None
         self.esdf_unknown_distance = 1.0e6
 
+        self.query_timings_ms = {}
         self._grid_key = None
         self._grid_offsets_cpu = None
         self._grid_offsets_gpu = None
@@ -156,17 +158,24 @@ class NvbloxBackend:
             float(cfg['size_z_m']),
         )
 
+    @staticmethod
+    def grid_offsets(cfg: dict) -> np.ndarray:
+        r, sx, sy, sz = NvbloxBackend._grid_key_from_cfg(cfg)
+        if not all(np.isfinite(v) and v > 0 for v in (r, sx, sy, sz)):
+            raise ValueError('ESDF grid resolution and sizes must be finite and positive.')
+        # Symmetric sample lattice, exact spacing, never outside the requested box.
+        axes = []
+        for size in (sx, sy, sz):
+            intervals = int(np.floor(size / r + 1e-9))
+            axes.append(((np.arange(intervals + 1, dtype=np.float64) - intervals / 2) * r).astype(np.float32))
+        xx, yy, zz = np.meshgrid(*axes, indexing='xy')
+        return np.stack((xx, yy, zz), axis=-1).reshape(-1, 3)
+
     def prepare_esdf_grid(self, cfg: dict) -> None:
         key = self._grid_key_from_cfg(cfg)
         if self._grid_key == key:
             return
-        r, sx, sy, sz = key
-        # Keep the same inclusive-end convention used by the original runtime.
-        xs = np.arange(-sx / 2.0, sx / 2.0 + r * 0.5, r, dtype=np.float32)
-        ys = np.arange(-sy / 2.0, sy / 2.0 + r * 0.5, r, dtype=np.float32)
-        zs = np.arange(-sz / 2.0, sz / 2.0 + r * 0.5, r, dtype=np.float32)
-        xx, yy, zz = np.meshgrid(xs, ys, zs, indexing='xy')
-        offsets = np.stack((xx, yy, zz), axis=-1).reshape(-1, 3).astype(np.float32, copy=False)
+        offsets = self.grid_offsets(cfg)
 
         with self.lock:
             offsets_gpu = self.torch.as_tensor(offsets, device='cuda', dtype=self.torch.float32).contiguous()
@@ -186,6 +195,7 @@ class NvbloxBackend:
         center_cpu = center.copy()
 
         with self.lock:
+            start = time.perf_counter()
             center_gpu = self.torch.as_tensor(center, device='cuda', dtype=self.torch.float32)
             self._grid_query_gpu[:, :3].copy_(self._grid_offsets_gpu + center_gpu)
             self._grid_output_gpu.fill_(float(self.esdf_unknown_distance))
@@ -195,10 +205,14 @@ class NvbloxBackend:
                 output=self._grid_output_gpu,
                 mapper_id=0,
             )
-            # Own the result so the preallocated output can be reused immediately.
-            owned = out.detach().clone()
-
-        distances = owned.cpu().numpy().reshape(-1)
+            query_end = time.perf_counter()
+            # Finish the readback while the mapper/buffer is protected. CPU owns this copy.
+            distances = out.detach().cpu().numpy().reshape(-1)
+            copy_end = time.perf_counter()
+            self.query_timings_ms = {
+                'esdf_3d_query_submit': (query_end - start) * 1000.0,
+                'esdf_3d_readback': (copy_end - query_end) * 1000.0,
+            }
         points = self._grid_offsets_cpu + center_cpu.reshape(1, 3)
         return points.astype(np.float32, copy=False), distances.astype(np.float32, copy=False)
 

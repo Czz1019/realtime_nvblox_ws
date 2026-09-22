@@ -14,6 +14,8 @@ def main():
     parser.add_argument('--duration', type=float, default=0.0, help='Seconds; 0 means until Ctrl+C')
     args = parser.parse_args()
     cfg = load_config(args.config)
+    if cfg.get('pose_source', 'cuvslam') == 'robot':
+        parser.error('Robot pose input requires ros_mapper; use the ROS node with this config.')
     rt = RealtimeNvbloxRuntime(cfg)
     rt.on('stats', lambda x: print(json.dumps(x, separators=(',', ':'))))
     rt.start()

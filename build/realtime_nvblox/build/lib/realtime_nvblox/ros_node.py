@@ -3,15 +3,20 @@ from __future__ import annotations
 import json
 import time
 
+import numpy as np
+from scipy.spatial.transform import Rotation
+
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from nav_msgs.msg import Path as PathMsg
 from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
-from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
+from tf2_ros import Buffer, TransformListener, TransformException, StaticTransformBroadcaster, TransformBroadcaster
 from visualization_msgs.msg import MarkerArray
 
 from realtime_nvblox.config import load_config
@@ -55,6 +60,18 @@ class RealtimeNvbloxNode(Node):
         self.runtime.on('mesh', self._on_mesh)
         self.runtime.on('esdf_slice', self._on_slice)
         self.runtime.on('stats', self._on_stats)
+        self.robot_mode = self.runtime.robot_pose is not None
+        if self.robot_mode:
+            if bool(self.get_parameter('use_sim_time').value):
+                raise ValueError('Live RealSense robot mode requires use_sim_time: false and synchronized host clocks.')
+            pcfg = self.cfg['robot_pose']
+            if pcfg.get('input', 'tf') == 'tf':
+                self.pose_tf_buffer = Buffer(cache_time=Duration(seconds=10.0))
+                self.pose_tf_listener = TransformListener(self.pose_tf_buffer, self)
+                self.runtime.robot_pose.lookup = self._lookup_tool_pose
+            else:
+                msg_type = TransformStamped if pcfg.get('message_type', 'TransformStamped') == 'TransformStamped' else PoseStamped
+                self.robot_pose_sub = self.create_subscription(msg_type, pcfg['topic'], self._on_robot_pose, sensor_qos)
         self.runtime.start()
         self._publish_static_extrinsics()
 
@@ -74,7 +91,53 @@ class RealtimeNvbloxNode(Node):
             'Python-first realtime nvblox started: mapping and full 3D ESDF query are decoupled.'
         )
 
+    @staticmethod
+    def _pose_matrix(translation, rotation):
+        q = np.asarray([rotation.x, rotation.y, rotation.z, rotation.w], dtype=np.float64)
+        if not np.isfinite(q).all() or not np.isclose(np.linalg.norm(q), 1.0, atol=1e-3):
+            raise ValueError('Robot pose quaternion must be finite and normalized.')
+        T = np.eye(4, dtype=np.float32)
+        T[:3, :3] = Rotation.from_quat(q).as_matrix()
+        T[:3, 3] = [translation.x, translation.y, translation.z]
+        if not np.isfinite(T).all():
+            raise ValueError('Robot pose translation must be finite.')
+        return T
+
+    def _lookup_tool_pose(self, timestamp_ns):
+        cfg = self.cfg['robot_pose']
+        try:
+            transform = self.pose_tf_buffer.lookup_transform(
+                cfg['base_frame'], cfg['tool_frame'], Time(nanoseconds=timestamp_ns),
+                timeout=Duration(seconds=float(cfg.get('pose_wait_ms', 10.0)) / 1000.0),
+            ).transform
+            return self._pose_matrix(transform.translation, transform.rotation)
+        except TransformException:
+            self.runtime.stats.inc('robot_tf_unavailable')
+            return None
+
+    def _on_robot_pose(self, msg):
+        cfg = self.cfg['robot_pose']
+        try:
+            if msg.header.frame_id != cfg['base_frame']:
+                raise ValueError(f"Robot pose parent must be {cfg['base_frame']}.")
+            if isinstance(msg, TransformStamped):
+                if msg.child_frame_id != cfg['tool_frame']:
+                    raise ValueError(f"Robot pose child must be {cfg['tool_frame']}.")
+                T = self._pose_matrix(msg.transform.translation, msg.transform.rotation)
+            else:
+                # PoseStamped has no child frame: the configured topic must describe tool_frame.
+                T = self._pose_matrix(msg.pose.position, msg.pose.orientation)
+            stamp = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+            if abs(time.time_ns() - stamp) > 5_000_000_000:
+                raise ValueError('Robot pose must use acquisition time on the synchronized host clock.')
+            self.runtime.add_robot_pose(stamp, T)
+        except ValueError as exc:
+            self.runtime.stats.inc('robot_pose_rejected')
+            self.get_logger().warning(str(exc), throttle_duration_sec=5.0)
+
     def _publish_static_extrinsics(self):
+        if self.robot_mode and not self.cfg['robot_pose'].get('publish_camera_extrinsics_tf', False):
+            return
         c = self.runtime.calibration
         now_ns = int(self.get_clock().now().nanoseconds)
         self.static_tf_pub.sendTransform([
@@ -90,9 +153,10 @@ class RealtimeNvbloxNode(Node):
         if len(self.path.poses) > self.path_max:
             self.path.poses = self.path.poses[-self.path_max:]
         self.path_pub.publish(self.path)
-        self.tf_pub.sendTransform(
-            transform_stamped(sample.T_world_rig, self.global_frame, self.rig_frame, sample.timestamp_ns)
-        )
+        if not self.robot_mode or self.cfg['robot_pose'].get('publish_camera_pose_tf', False):
+            self.tf_pub.sendTransform(
+                transform_stamped(sample.T_world_rig, self.global_frame, self.rig_frame, sample.timestamp_ns)
+            )
 
     def _on_mesh(self, mesh):
         self.mesh_pub.publish(mesh_markers(
@@ -131,6 +195,8 @@ class RealtimeNvbloxNode(Node):
         self.esdf3d_pub.publish(msg)
         self.runtime.stats.add_latency('esdf_3d_ros_publish', (time.perf_counter() - start) * 1000.0)
         self.runtime.stats.inc('esdf_3d_published')
+        if self.robot_mode:
+            self.runtime.stats.add_latency('esdf_3d_age', (time.time_ns() - data.timestamp_ns) / 1e6)
 
     def _on_stats(self, stats):
         msg = String()

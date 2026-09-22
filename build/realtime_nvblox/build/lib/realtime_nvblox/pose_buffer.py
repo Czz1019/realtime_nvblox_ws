@@ -15,18 +15,22 @@ class PoseBuffer:
         self._samples: deque[PoseSample] = deque(maxlen=maxlen)
         self._cv = threading.Condition()
 
-    def add(self, sample: PoseSample) -> None:
+    def add(self, sample: PoseSample) -> bool:
         with self._cv:
             if self._samples and sample.timestamp_ns < self._samples[-1].timestamp_ns:
-                return
+                return False
+            if self._samples and sample.timestamp_ns == self._samples[-1].timestamp_ns:
+                self._samples.pop()
             self._samples.append(sample)
             self._cv.notify_all()
+            return True
 
     def latest(self) -> PoseSample | None:
         with self._cv:
             return self._samples[-1] if self._samples else None
 
-    def query(self, timestamp_ns: int, max_error_ms: float = 50.0, wait_ms: float = 25.0) -> PoseSample | None:
+    def query(self, timestamp_ns: int, max_error_ms: float = 50.0, wait_ms: float = 25.0,
+              allow_nearest: bool = True) -> PoseSample | None:
         deadline = time.monotonic() + max(0.0, wait_ms) / 1000.0
         with self._cv:
             while True:
@@ -34,7 +38,7 @@ class PoseBuffer:
                 if result is not None:
                     return result
                 if time.monotonic() >= deadline:
-                    return self._nearest_locked(timestamp_ns, max_error_ms)
+                    return self._nearest_locked(timestamp_ns, max_error_ms) if allow_nearest else None
                 self._cv.wait(timeout=max(0.0, deadline - time.monotonic()))
 
     def _nearest_locked(self, ts: int, max_error_ms: float) -> PoseSample | None:
@@ -43,10 +47,11 @@ class PoseBuffer:
         nearest = min(self._samples, key=lambda x: abs(x.timestamp_ns - ts))
         if abs(nearest.timestamp_ns - ts) > max_error_ms * 1e6:
             return None
-        return PoseSample(ts, nearest.T_world_rig.copy(), nearest.tracking_ok, nearest.slam_T_world_rig)
+        return PoseSample(ts, nearest.T_world_rig.copy(), nearest.tracking_ok, nearest.slam_T_world_rig,
+                          pose_error_ms=abs(nearest.timestamp_ns - ts) / 1e6)
 
     def _query_locked(self, ts: int, max_error_ms: float) -> PoseSample | None:
-        if len(self._samples) < 2:
+        if not self._samples:
             return None
         samples = list(self._samples)
         before = None
@@ -76,4 +81,6 @@ class PoseBuffer:
         T = np.eye(4, dtype=np.float32)
         T[:3, :3] = rot.astype(np.float32)
         T[:3, 3] = p.astype(np.float32)
-        return PoseSample(ts, T, before.tracking_ok and after.tracking_ok)
+        return PoseSample(ts, T, before.tracking_ok and after.tracking_ok,
+                          pose_error_ms=max(ts - before.timestamp_ns, after.timestamp_ns - ts) / 1e6,
+                          interpolated=True)

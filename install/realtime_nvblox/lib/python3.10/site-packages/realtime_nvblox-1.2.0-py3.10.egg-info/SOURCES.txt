@@ -12,10 +12,9 @@ setup.py
 ../../build/realtime_nvblox/realtime_nvblox.egg-info/not-zip-safe
 ../../build/realtime_nvblox/realtime_nvblox.egg-info/requires.txt
 ../../build/realtime_nvblox/realtime_nvblox.egg-info/top_level.txt
-config/default.yaml
-config/esdf_benchmark.yaml
-config/esdf_final.yaml
+examples/esdf_rate_monitor.py
 launch/reconstruction.launch.py
+realtime_nvblox/ROBOT_MAPPING.md
 realtime_nvblox/__init__.py
 realtime_nvblox/check_env.py
 realtime_nvblox/cli.py
@@ -28,6 +27,8 @@ realtime_nvblox/pose_buffer.py
 realtime_nvblox/queues.py
 realtime_nvblox/rate_limiter.py
 realtime_nvblox/realsense_source.py
+realtime_nvblox/robot_eye_in_hand.yaml
+realtime_nvblox/robot_pose.py
 realtime_nvblox/ros_node.py
 realtime_nvblox/ros_publishers.py
 realtime_nvblox/runtime.py
@@ -39,6 +40,7 @@ realtime_nvblox/__pycache__/check_env.cpython-313.pyc
 realtime_nvblox/__pycache__/cli.cpython-313.pyc
 realtime_nvblox/__pycache__/config.cpython-313.pyc
 realtime_nvblox/__pycache__/cuvslam_backend.cpython-313.pyc
+realtime_nvblox/__pycache__/latest_slot.cpython-313.pyc
 realtime_nvblox/__pycache__/nvblox_backend.cpython-313.pyc
 realtime_nvblox/__pycache__/pose_buffer.cpython-313.pyc
 realtime_nvblox/__pycache__/queues.cpython-313.pyc
@@ -50,6 +52,9 @@ realtime_nvblox/__pycache__/runtime.cpython-313.pyc
 realtime_nvblox/__pycache__/runtime_loader.cpython-313.pyc
 realtime_nvblox/__pycache__/stats.cpython-313.pyc
 realtime_nvblox/__pycache__/types.cpython-313.pyc
+realtime_nvblox/tests/test_gpu_esdf.py
+realtime_nvblox/tests/test_robot_esdf.py
+realtime_nvblox/tests/test_ros_robot_pose.py
 resource/realtime_nvblox
 rviz/realtime_nvblox.rviz
 scripts/build_ros.sh
