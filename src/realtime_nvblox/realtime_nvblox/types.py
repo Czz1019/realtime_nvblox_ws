@@ -62,6 +62,8 @@ class PoseSample:
     T_world_rig: np.ndarray
     tracking_ok: bool = True
     slam_T_world_rig: Optional[np.ndarray] = None
+    pose_error_ms: float = 0.0
+    interpolated: bool = False
 
 
 @dataclass

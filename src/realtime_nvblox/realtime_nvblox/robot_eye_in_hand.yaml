@@ -1,0 +1,46 @@
+# Override default.yaml. All translations are metres; quaternion order is x,y,z,w.
+pose_source: robot
+frames:
+  global: base_link
+  rig: camera_left_optical_frame
+  depth: camera_depth_optical_frame
+  color: camera_color_optical_frame
+
+robot_pose:
+  input: tf
+  base_frame: base_link
+  tool_frame: tool0
+  extrinsic_frame: camera_color_optical_frame
+  # T_tool_color: maps color optical coordinates into tool0 coordinates.
+  handeye_transform:
+    translation: [-0.017628, -0.059898, -0.011736]
+    rotation: [-0.269397, -0.654924, 0.649293, 0.277342]
+  pose_wait_ms: 10.0
+  max_pose_error_ms: 20.0  # topic interpolation only; TF rejects extrapolation
+  allow_nearest: false
+  buffer_size: 1024
+  publish_camera_pose_tf: false
+  publish_camera_extrinsics_tf: false
+  # Optional topic input (instead of TF):
+  # input: topic
+  # topic: /robot/tool_pose
+  # message_type: TransformStamped  # or PoseStamped, which must describe tool0
+
+vslam:
+  enable: false
+
+realsense:
+  depth_fps: 30
+  emitter_flashing: false
+
+mapping:
+  depth_hz: 0.0  # continuous 30 Hz depth; do not apply another input gate
+  esdf_update_hz: 30.0
+  enable_color: false
+  enable_mesh: false
+
+esdf_3d:
+  enabled: true
+  generate_hz: 30.0
+  publish_hz: 30.0
+  offset_frame: world
